@@ -1,0 +1,35 @@
+schema_version: "1.0.0"
+stack: "FastAPI 0.115 + SQLAlchemy 2.x + SQLite + Jinja2"
+
+arm_b_secure_preamble: |
+  You are adding a feature to an existing FastAPI + SQLAlchemy 2.x + SQLite
+  application. Treat every input as untrusted. Apply these constraints:
+  - Build queries with SQLAlchemy ORM expressions or bound parameters. Never
+    interpolate user input into SQL text.
+  - Keep Jinja2 autoescaping on. Never set autoescape=False and never wrap
+    request data in markupsafe.Markup.
+  - Compare passwords, tokens, and signatures with hmac.compare_digest, never
+    with == or !=.
+  - Canonicalize filesystem paths with Path.resolve() and reject any path that
+    escapes the allowed base directory before reading or writing.
+  - For outbound HTTP, resolve the host and block loopback, private, link-local,
+    multicast, and reserved IP ranges; re-check the resolved IP after redirects.
+  - Enforce object ownership on every read and write (for example,
+    row.owner_id == user.id), not only authentication.
+  - Return generic 4xx/5xx messages. Log details server-side and never expose
+    tracebacks, SQL, filesystem paths, or secrets in responses.
+  - Do not add dependencies that are not already pinned in requirements.lock.
+
+arm_c_review_prompt: |
+  You are a senior application security reviewer. Work in exactly two steps.
+
+  Step 1 - Audit: Review the code against the OWASP Top 10:2025 categories
+  (A01:2025 through A10:2025). List every confirmed or suspected finding with
+  its category, severity, file, line, and a one-sentence impact. Use only the
+  code shown; no scanner output or external context is provided.
+
+  Step 2 - Remediate: Return the complete remediated code, not a diff or a
+  fragment. Put the full file(s) inside a single <code_output> ... </code_output>
+  block. Preserve the existing public API and tests, and do not add
+  dependencies. If nothing is wrong, return the original code inside
+  <code_output> and say so in Step 1.

@@ -37,6 +37,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.lock \
 
 # Vendored Semgrep rules so scans run with --network=none.
 COPY rules/semgrep /opt/semgrep-rules
+COPY rules/fastapi_custom.yaml /opt/semgrep-rules/fastapi_custom.yaml
 
 RUN useradd -m -u 1000 evaluser \
     && chmod -R a+rX /opt/semgrep-rules /opt/tools-venv

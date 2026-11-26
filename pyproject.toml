@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-sec-audit"
+version = "0.1.0"
+description = "AI code security benchmark: pipeline, analysis, and harness"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "scipy",
+    "statsmodels",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+]
+
+[tool.setuptools]
+packages = ["analysis", "pipeline"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "TID", "ARG", "PTH"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+strict_optional = true
+ignore_missing_imports = true

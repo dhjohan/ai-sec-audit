@@ -45,6 +45,10 @@ def pre() -> dict[str, object]:
         else "missing"
     )
     data["semgrep_rules_count"] = len(rule_hashes)
+    custom_rules = ROOT / "rules" / "fastapi_custom.yaml"
+    data["fastapi_custom_rules_sha256"] = (
+        _sha256(custom_rules) if custom_rules.exists() else "missing"
+    )
     return data
 
 

@@ -48,7 +48,7 @@ class Severity(str, Enum):
     INFO = "info"
 
 
-class Finding(BaseModel):
+class NormalizedFinding(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: UUID = Field(default_factory=uuid4)
@@ -84,7 +84,7 @@ class ArtifactEvaluation(BaseModel):
     artifact_sha256: str
     artifact_path: str
     language: str = "python"
-    findings: list[Finding] = Field(default_factory=list)
+    findings: list[NormalizedFinding] = Field(default_factory=list)
     semgrep_duration_ms: int
     codeql_duration_ms: int
     pip_audit_duration_ms: int

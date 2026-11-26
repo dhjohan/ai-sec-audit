@@ -1,0 +1,149 @@
+rules:
+  - id: fastapi-htmlresponse-fstring
+    languages: [python]
+    severity: WARNING
+    message: >-
+      HTMLResponse built from an f-string can reflect untrusted input without
+      escaping (CWE-79). Render a Jinja2 template with autoescaping or escape
+      the values explicitly.
+    metadata:
+      cwe: ["CWE-79"]
+      owasp: ["A05:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: HTMLResponse(f"...", ...)
+          - pattern: HTMLResponse(content=f"...", ...)
+          - pattern: fastapi.responses.HTMLResponse(f"...", ...)
+          - pattern: fastapi.responses.HTMLResponse(content=f"...", ...)
+
+  - id: fastapi-jinja2-autoescape-disabled
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Jinja2 autoescaping is disabled. User-controlled data rendered into HTML
+      becomes an XSS sink (CWE-79). Use select_autoescape() or autoescape=True.
+    metadata:
+      cwe: ["CWE-79"]
+      owasp: ["A05:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: Environment(..., autoescape=False, ...)
+          - pattern: Environment(..., autoescape=0, ...)
+          - pattern: Environment(..., autoescape=None, ...)
+          - pattern: jinja2.Environment(..., autoescape=False, ...)
+          - pattern: jinja2.Environment(..., autoescape=0, ...)
+          - pattern: jinja2.Environment(..., autoescape=None, ...)
+
+  - id: fastapi-markup-untrusted
+    languages: [python]
+    severity: WARNING
+    message: >-
+      markupsafe.Markup disables Jinja2 autoescaping for its argument (CWE-79).
+      Only wrap static, trusted strings; escape user data instead.
+    metadata:
+      cwe: ["CWE-79"]
+      owasp: ["A05:2025"]
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: Markup(...)
+          - pattern: markupsafe.Markup(...)
+
+  - id: fastapi-hmac-compare-inequality
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Signature/HMAC values compared with == or != leak timing information
+      (CWE-208). Use hmac.compare_digest(expected, actual).
+    metadata:
+      cwe: ["CWE-208"]
+      owasp: ["A04:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern: $SIG == $EXPECTED
+              - metavariable-regex:
+                  metavariable: $SIG
+                  regex: (?i).*(sig|signature|hmac|digest|mac|token).*
+          - patterns:
+              - pattern: $EXPECTED == $SIG
+              - metavariable-regex:
+                  metavariable: $SIG
+                  regex: (?i).*(sig|signature|hmac|digest|mac|token).*
+          - patterns:
+              - pattern: $SIG != $EXPECTED
+              - metavariable-regex:
+                  metavariable: $SIG
+                  regex: (?i).*(sig|signature|hmac|digest|mac|token).*
+          - patterns:
+              - pattern: $EXPECTED != $SIG
+              - metavariable-regex:
+                  metavariable: $SIG
+                  regex: (?i).*(sig|signature|hmac|digest|mac|token).*
+
+  - id: fastapi-yaml-load-unsafe
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load() without SafeLoader can instantiate arbitrary Python objects
+      (CWE-502). Use yaml.safe_load() or Loader=yaml.SafeLoader.
+    metadata:
+      cwe: ["CWE-502"]
+      owasp: ["A08:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: yaml.load(...)
+          - pattern: yaml.unsafe_load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=yaml.CSafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=SafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=CSafeLoader, ...)
+      - pattern-not: yaml.load(..., yaml.SafeLoader, ...)
+      - pattern-not: yaml.load(..., yaml.CSafeLoader, ...)
+
+  - id: fastapi-traceback-in-http-response
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Returning traceback.format_exc() to a client leaks internals (CWE-209,
+      CWE-755). Log it server-side and return a generic 4xx/5xx message.
+    metadata:
+      cwe: ["CWE-209", "CWE-755"]
+      owasp: ["A10:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern: traceback.format_exc()
+      - pattern-either:
+          - pattern-inside: |
+              return ...
+          - pattern-inside: |
+              raise HTTPException(...)
+          - pattern-inside: |
+              JSONResponse(...)
+          - pattern-inside: |
+              HTMLResponse(...)
+          - pattern-inside: |
+              PlainTextResponse(...)
+          - pattern-inside: |
+              Response(...)
+
+  - id: fastapi-cors-wildcard-credentials
+    languages: [python]
+    severity: ERROR
+    message: >-
+      allow_origins=["*"] with allow_credentials=True lets any origin send
+      credentialed requests (CWE-942). Use an explicit origin allowlist.
+    metadata:
+      cwe: ["CWE-942"]
+      owasp: ["A02:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: $MW(..., allow_origins=["*"], ..., allow_credentials=True, ...)
+          - pattern: $MW(..., allow_origins=["*", ...], ..., allow_credentials=True, ...)
+          - pattern: $MW(..., allow_origins=[..., "*"], ..., allow_credentials=True, ...)
+          - pattern: $MW(..., allow_origins=("*",), ..., allow_credentials=True, ...)
