@@ -1,0 +1,1 @@
+"""Clean FastAPI sandbox application."""

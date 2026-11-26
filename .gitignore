@@ -1,0 +1,12 @@
+.venv*/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+sandbox_template/test_sandbox.db
+sandbox_template/sandbox.db
+/tmp/
+artifacts/*
+!artifacts/.gitkeep

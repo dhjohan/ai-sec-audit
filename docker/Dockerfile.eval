@@ -1,0 +1,69 @@
+# Evaluation image: Python 3.12 + Semgrep OSS + CodeQL CLI/python-queries + pip-audit + pytest
+FROM python:3.12-slim AS base
+
+# unzip is required for the CodeQL bundle; build-essential for native wheels.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    unzip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin CodeQL CLI + matching python-queries pack. Fail loudly if either is wrong.
+ARG CODEQL_VERSION=2.27.6
+ARG CODEQL_PYTHON_PACK=codeql/python-queries@1.7.2
+ENV CODEQL_SEARCH_PATH=/opt/codeql-packages
+
+RUN curl -sSL "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip" -o /tmp/codeql.zip \
+    && unzip -q /tmp/codeql.zip -d /opt \
+    && mv /opt/codeql /opt/codeql-cli \
+    && rm /tmp/codeql.zip \
+    && mkdir -p "${CODEQL_SEARCH_PATH}" \
+    && /opt/codeql-cli/codeql pack download --dir="${CODEQL_SEARCH_PATH}" "${CODEQL_PYTHON_PACK}"
+
+ENV PATH="/opt/codeql-cli:${PATH}"
+
+# Isolate only the standalone CLI scanners so they cannot clash with app deps.
+RUN python -m venv /opt/tools-venv \
+    && /opt/tools-venv/bin/pip install --no-cache-dir \
+        semgrep==1.187.0 \
+        pip-audit==2.8.0 \
+    && ln -sf /opt/tools-venv/bin/semgrep /usr/local/bin/semgrep \
+    && ln -sf /opt/tools-venv/bin/pip-audit /usr/local/bin/pip-audit
+
+# App runtime + dev tooling (pytest, pytest-asyncio, pytest-cov, ruff, mypy)
+# share the system interpreter so pytest/mypy can import fastapi/sqlalchemy.
+COPY sandbox_template/requirements.lock /tmp/requirements.lock
+RUN pip install --no-cache-dir -r /tmp/requirements.lock \
+    && pip check
+
+# Vendored Semgrep rules so scans run with --network=none.
+COPY rules/semgrep /opt/semgrep-rules
+
+WORKDIR /workspace
+
+RUN useradd -m -u 1000 evaluser \
+    && chmod -R a+rX /opt/codeql-packages /opt/semgrep-rules /opt/tools-venv
+
+USER evaluser
+
+# Build-time proof that evaluser can locate and compile the pinned suite offline.
+RUN codeql resolve queries --search-path=/opt/codeql-packages \
+    codeql/python-queries:codeql-suites/python-security-extended.qls >/dev/null
+
+# Validate every vendored rule file individually. Per-file validation avoids
+# duplicate-id clashes between registry packs while still failing the build on
+# any invalid YAML.
+RUN set -e; for f in /opt/semgrep-rules/*.yaml /opt/semgrep-rules/vendor/*.yaml; do \
+        if [ -e "$f" ]; then semgrep --validate --config "$f"; fi; \
+    done
+
+RUN semgrep --version \
+    && codeql version --format=terse \
+    && pip-audit --version \
+    && ruff --version \
+    && mypy --version \
+    && pytest --version
+
+CMD ["pytest", "-v"]
