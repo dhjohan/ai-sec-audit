@@ -1,5 +1,6 @@
 {
   "sandbox_template_requirements_lock_sha256": "2445147d82a7a87d7ea81a87d7e5a38ee78bc9fbc70728a4813b03038e290d46",
   "semgrep_rules_sha256": "aa969463daa82099078f911d581b5af75d342ab8c02925ce6e1afca4d674b2ad",
-  "semgrep_rules_count": 5
+  "semgrep_rules_count": 5,
+  "fastapi_custom_rules_sha256": "60870e505d7992150cff26d9b7422dc7c0d7a34422c7095b4671532cbac9fa08"
 }

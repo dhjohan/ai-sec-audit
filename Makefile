@@ -1,12 +1,12 @@
 # AI Code Security Benchmark - Phase 0 driver
-.PHONY: help check-env build lock-env test lint typecheck codeql-offline clean sandbox-up sandbox-down sandbox-logs
+.PHONY: help check-env build-eval-image lock-env test lint typecheck codeql-offline clean sandbox-up sandbox-down sandbox-logs
 
 help:
 	@echo "AI Code Security Benchmark"
 	@echo ""
 	@echo "Phase 0 targets:"
 	@echo "  check-env      Capture local lockfile hashes into versions.lock.json"
-	@echo "  build          Build the evaluation Docker image"
+	@echo "  build-eval-image  Build the evaluation Docker image"
 	@echo "  lock-env       Capture actual tool versions from the built image"
 	@echo ""
 	@echo "Verification targets:"
@@ -25,12 +25,13 @@ help:
 check-env:
 	@python pipeline/lock_env.py pre
 
-build: check-env
+build-eval-image: check-env
 	docker build -f docker/Dockerfile.eval -t ai-sec-eval:latest .
 
 # Phase 0b: record the versions actually installed in the pinned image.
-lock-env: build
+lock-env: build-eval-image
 	@docker run --rm --workdir /tmp ai-sec-eval:latest sh -c '\
+		echo "python=$$(python --version 2>&1)"; \
 		echo "semgrep=$$(semgrep --version)"; \
 		echo "codeql=$$(codeql version --format=terse)"; \
 		echo "pip_audit=$$(pip-audit --version)"; \
@@ -66,7 +67,7 @@ test: lock-env
 
 # Phase 3 readiness: the pinned pack must resolve as evaluser with no network and
 # a read-only root. Only the /tmp tmpfs is writable.
-codeql-offline: build
+codeql-offline: build-eval-image
 	docker run --rm \
 		--network=none \
 		--read-only \

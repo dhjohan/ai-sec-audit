@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from pipeline.schemas import (
     Arm,
     ArtifactEvaluation,
-    Finding,
+    NormalizedFinding,
     OWASPTop10_2025,
     PromptSpec,
     RunManifest,
@@ -50,7 +50,7 @@ def test_owasp_2025_categories() -> None:
 
 
 def test_finding_serialization() -> None:
-    finding = Finding(
+    finding = NormalizedFinding(
         rule_id="TEST-001",
         owasp_category=OWASPTop10_2025.A05_INJECTION,
         severity=Severity.HIGH,
@@ -66,7 +66,7 @@ def test_finding_serialization() -> None:
 
 
 def test_finding_is_frozen() -> None:
-    finding = Finding(
+    finding = NormalizedFinding(
         rule_id="TEST-001",
         owasp_category=OWASPTop10_2025.A05_INJECTION,
         severity=Severity.HIGH,
