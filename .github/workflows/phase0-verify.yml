@@ -41,8 +41,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build image, record versions, lint, test
-        run: make lock-env lint test
+      - name: Build image, record versions, lint, test, offline CodeQL smoke
+        run: make lock-env lint test codeql-offline
 
       - name: Upload versions.lock.json
         if: always()

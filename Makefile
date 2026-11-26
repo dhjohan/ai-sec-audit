@@ -1,5 +1,5 @@
 # AI Code Security Benchmark - Phase 0 driver
-.PHONY: help check-env build lock-env test lint typecheck clean sandbox-up sandbox-down sandbox-logs
+.PHONY: help check-env build lock-env test lint typecheck codeql-offline clean sandbox-up sandbox-down sandbox-logs
 
 help:
 	@echo "AI Code Security Benchmark"
@@ -13,6 +13,7 @@ help:
 	@echo "  test           Run harness + sandbox tests in an isolated container"
 	@echo "  lint           Ruff + mypy on trusted source only"
 	@echo "  typecheck      mypy on trusted source only"
+	@echo "  codeql-offline Offline CodeQL resolve check (no network, read-only root)"
 	@echo "  clean          Remove caches only (never artifacts/)"
 	@echo ""
 	@echo "Sandbox targets:"
@@ -29,14 +30,16 @@ build: check-env
 
 # Phase 0b: record the versions actually installed in the pinned image.
 lock-env: build
-	@docker run --rm ai-sec-eval:latest sh -c '\
+	@docker run --rm --workdir /tmp ai-sec-eval:latest sh -c '\
 		echo "semgrep=$$(semgrep --version)"; \
 		echo "codeql=$$(codeql version --format=terse)"; \
 		echo "pip_audit=$$(pip-audit --version)"; \
 		echo "ruff=$$(ruff --version)"; \
 		echo "mypy=$$(mypy --version)"; \
 		echo "pytest=$$(pytest --version)"' > /tmp/tool_versions.txt
-	@python pipeline/lock_env.py post /tmp/tool_versions.txt
+	@docker run --rm --workdir /tmp ai-sec-eval:latest \
+		codeql resolve packs --format=json > /tmp/codeql_packs.json
+	@python pipeline/lock_env.py post /tmp/tool_versions.txt /tmp/codeql_packs.json
 
 # Untrusted generated code runs sandboxed: no network, read-only root, capped.
 test: lock-env
@@ -56,7 +59,29 @@ test: lock-env
 		-v $(CURDIR)/rules:/workspace/rules:ro \
 		-v $(CURDIR)/taxonomies:/workspace/taxonomies:ro \
 		ai-sec-eval:latest \
-		sh -c "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/workspace pytest -p no:cacheprovider /workspace/tests_harness -v --tb=short && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/workspace/sandbox_template pytest -p no:cacheprovider /workspace/sandbox_template/tests -v --tb=short"
+		sh -c "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/workspace pytest -p no:cacheprovider /workspace/tests_harness -v --tb=short \
+		&& rm -rf /tmp/sandbox_template \
+		&& cp -R /workspace/sandbox_template /tmp/sandbox_template \
+		&& PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/sandbox_template pytest -p no:cacheprovider /tmp/sandbox_template/tests -v --tb=short"
+
+# Phase 3 readiness: the pinned pack must resolve as evaluser with no network and
+# a read-only root. Only the /tmp tmpfs is writable.
+codeql-offline: build
+	docker run --rm \
+		--network=none \
+		--read-only \
+		--tmpfs /tmp:rw,size=64m \
+		--cap-drop=ALL \
+		--memory=512m \
+		--cpus=1 \
+		--workdir /tmp \
+		ai-sec-eval:latest \
+		sh -c 'mkdir -p /tmp/codeql-cache \
+			&& test -w /tmp/codeql-cache \
+			&& test -w "$$HOME/.codeql/compile-cache" \
+			&& codeql resolve packs >/dev/null \
+			&& codeql resolve queries "codeql/python-queries@1.7.2:codeql-suites/python-security-extended.qls" >/dev/null \
+			&& echo "codeql offline resolve OK"'
 
 lint: lock-env
 	docker run --rm \
@@ -95,7 +120,7 @@ typecheck: lock-env
 
 # Caches only. artifacts/ is immutable raw experimental data (AGENTS.md).
 clean:
-	rm -rf .pytest_cache .mypy_cache .ruff_cache __pycache__ build_batch codeql_dbs /tmp/tool_versions.txt
+	rm -rf .pytest_cache .mypy_cache .ruff_cache __pycache__ build_batch codeql_dbs /tmp/tool_versions.txt /tmp/codeql_packs.json
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 
 sandbox-up:

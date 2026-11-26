@@ -48,3 +48,19 @@
 - **Test Command:** `[e.g., uv run pytest -q]`
 - **Lint / Typecheck Command:** `[e.g., ruff check . && mypy src/]`
 - **Protected / Do-Not-Touch Paths:** `[e.g., migrations/, .github/workflows/, lockfiles]`
+
+## CodeQL Offline / Read-Only Contract (Phase 3)
+
+- The image bakes `codeql/python-queries@1.7.2` into `$HOME/.codeql/packages`.
+- Always resolve queries by pinned spec:
+  `codeql/python-queries@1.7.2:codeql-suites/python-security-extended.qls`.
+  A versionless spec (`codeql/python-queries:...`) makes CodeQL query GHCR for "latest".
+- Run scans in `--read-only --network=none` containers with
+  `--tmpfs /tmp:rw,size=64m`, and create the cache first: `mkdir -p /tmp/codeql-cache`.
+- Always pass `--compilation-cache=/tmp/codeql-cache`. CodeQL also writes its default
+  compilation cache under `$HOME/.codeql`; the image symlinks that directory to the
+  tmpfs path because `$HOME` is read-only at scan time.
+- Never use `--search-path` against the pack download/cache directory; the pinned spec
+  is the only supported resolution path.
+- `make codeql-offline` proves the pinned spec resolves as `evaluser` with no network
+  and a read-only root.

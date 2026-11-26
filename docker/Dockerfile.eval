@@ -12,19 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Pin CodeQL CLI + matching python-queries pack. Fail loudly if either is wrong.
 ARG CODEQL_VERSION=2.27.6
-ARG CODEQL_PACK=codeql/python-queries
-ARG CODEQL_PACK_VERSION=1.7.2
-ENV CODEQL_DOWNLOAD_DIR=/opt/codeql-packages
-# `codeql pack download` lays packs out as <dir>/<scope>/<name>/<version>.
-# `--search-path` must point at that versioned pack root, NOT the cache dir.
-ENV CODEQL_PACK_ROOT=${CODEQL_DOWNLOAD_DIR}/${CODEQL_PACK}/${CODEQL_PACK_VERSION}
+ARG CODEQL_PYTHON_PACK=codeql/python-queries@1.7.2
 
 RUN curl -sSL "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip" -o /tmp/codeql.zip \
     && unzip -q /tmp/codeql.zip -d /opt \
     && mv /opt/codeql /opt/codeql-cli \
-    && rm /tmp/codeql.zip \
-    && mkdir -p "${CODEQL_DOWNLOAD_DIR}" \
-    && /opt/codeql-cli/codeql pack download --dir="${CODEQL_DOWNLOAD_DIR}" "${CODEQL_PACK}@${CODEQL_PACK_VERSION}"
+    && rm /tmp/codeql.zip
 
 ENV PATH="/opt/codeql-cli:${PATH}"
 
@@ -45,16 +38,38 @@ RUN pip install --no-cache-dir -r /tmp/requirements.lock \
 # Vendored Semgrep rules so scans run with --network=none.
 COPY rules/semgrep /opt/semgrep-rules
 
-WORKDIR /workspace
-
 RUN useradd -m -u 1000 evaluser \
-    && chmod -R a+rX /opt/codeql-packages /opt/semgrep-rules /opt/tools-venv
+    && chmod -R a+rX /opt/semgrep-rules /opt/tools-venv
 
+# CodeQL's common cache is $HOME/.codeql, so HOME must match the evaluser passwd entry.
+ENV HOME=/home/evaluser
 USER evaluser
 
-# Build-time proof that evaluser can locate and compile the pinned suite offline.
-RUN codeql resolve queries --search-path="${CODEQL_PACK_ROOT}" \
-    "${CODEQL_PACK}:codeql-suites/python-security-extended.qls" >/dev/null
+# Keep the build-time CodeQL probes out of the read-only-at-runtime /workspace.
+WORKDIR /tmp
+
+# No --dir: CodeQL installs the pinned pack and its bundled dependencies into
+# $HOME/.codeql/packages, keyed by version, and never contacts GHCR again when
+# the spec is pinned.
+RUN codeql pack download "${CODEQL_PYTHON_PACK}"
+
+# The default compilation cache is $HOME/.codeql/compile-cache. Point it at the
+# runtime tmpfs so `--read-only` scans can compile. Phase 3 must first run
+# `mkdir -p /tmp/codeql-cache` because --tmpfs /tmp starts empty.
+RUN mkdir -p /tmp/codeql-cache \
+    && ln -sfn /tmp/codeql-cache "${HOME}/.codeql/compile-cache"
+
+# Build-time proof that evaluser can resolve the pinned suite offline.
+RUN codeql resolve packs \
+    && codeql resolve queries "${CODEQL_PYTHON_PACK}:codeql-suites/python-security-extended.qls" >/dev/null
+
+# Prove the writable compilation cache works. Full-suite precompilation is
+# deferred to Phase 3: it is slow and /tmp is a fresh tmpfs at scan time.
+RUN codeql query compile --compilation-cache=/tmp/codeql-cache \
+        "${CODEQL_PYTHON_PACK}:Security/CWE-089/SqlInjection.ql" \
+    && test -n "$(ls -A /tmp/codeql-cache)" \
+    && rm -rf /tmp/codeql-cache/* \
+    && mkdir -p /tmp/codeql-cache
 
 # Validate every vendored rule file individually. Per-file validation avoids
 # duplicate-id clashes between registry packs while still failing the build on
@@ -69,5 +84,7 @@ RUN semgrep --version \
     && ruff --version \
     && mypy --version \
     && pytest --version
+
+WORKDIR /workspace
 
 CMD ["pytest", "-v"]

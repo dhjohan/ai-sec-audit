@@ -2,7 +2,7 @@
 
 Usage:
   python pipeline/lock_env.py pre
-  python pipeline/lock_env.py post <tool_versions_file>
+  python pipeline/lock_env.py post <tool_versions_file> <codeql_packs_json>
 """
 
 from __future__ import annotations
@@ -48,7 +48,41 @@ def pre() -> dict[str, object]:
     return data
 
 
-def post(tool_versions_file: Path) -> dict[str, object]:
+def _codeql_packs(path: Path) -> dict[str, dict[str, str]]:
+    """Normalize `codeql resolve packs --format=json` to name -> metadata.
+
+    The CLI emits two shapes: `by-name` steps put `version` on scan entries,
+    while `by-name-and-version` steps nest `found[name][version]` (the pack cache).
+    """
+    raw = json.loads(path.read_text())
+    packs: dict[str, dict[str, str]] = {}
+    for step in raw.get("steps", []):
+        for name, versions in step.get("found", {}).items():
+            if not isinstance(versions, dict):
+                continue
+            for version, info in versions.items():
+                if isinstance(info, dict) and "path" in info:
+                    packs[name] = {
+                        "version": str(version),
+                        "kind": str(info.get("kind", "")),
+                        "path": str(info["path"]),
+                    }
+        for scan in step.get("scans", []):
+            for name, info in scan.get("found", {}).items():
+                if isinstance(info, dict) and "version" in info:
+                    packs[name] = {
+                        "version": str(info["version"]),
+                        "kind": str(info.get("kind", "")),
+                        "path": str(info.get("path", "")),
+                    }
+    if "codeql/python-queries" not in packs:
+        raise SystemExit(
+            "ERROR: codeql/python-queries missing from `codeql resolve packs`"
+        )
+    return dict(sorted(packs.items()))
+
+
+def post(tool_versions_file: Path, codeql_packs_file: Path) -> dict[str, object]:
     tools: dict[str, str] = {}
     for line in tool_versions_file.read_text().splitlines():
         if "=" in line:
@@ -62,6 +96,7 @@ def post(tool_versions_file: Path) -> dict[str, object]:
     data["docker_image"] = "ai-sec-eval:latest"
     data["image_digest"] = digest
     data["tool_versions"] = tools
+    data["codeql_packs"] = _codeql_packs(codeql_packs_file)
     return data
 
 
@@ -72,10 +107,13 @@ def main(argv: list[str]) -> int:
     if argv[1] == "pre":
         data = pre()
     else:
-        if len(argv) < 3:
-            print("ERROR: post requires a tool_versions file path")
+        if len(argv) < 4:
+            print(
+                "ERROR: post requires a tool_versions file and a "
+                "codeql_packs JSON file"
+            )
             return 2
-        data = post(Path(argv[2]))
+        data = post(Path(argv[2]), Path(argv[3]))
     LOCK.write_text(json.dumps(data, indent=2) + "\n")
     print(f"versions.lock.json written ({argv[1]})")
     return 0
