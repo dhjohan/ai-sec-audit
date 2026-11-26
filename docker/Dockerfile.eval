@@ -12,15 +12,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Pin CodeQL CLI + matching python-queries pack. Fail loudly if either is wrong.
 ARG CODEQL_VERSION=2.27.6
-ARG CODEQL_PYTHON_PACK=codeql/python-queries@1.7.2
-ENV CODEQL_SEARCH_PATH=/opt/codeql-packages
+ARG CODEQL_PACK=codeql/python-queries
+ARG CODEQL_PACK_VERSION=1.7.2
+ENV CODEQL_DOWNLOAD_DIR=/opt/codeql-packages
+# `codeql pack download` lays packs out as <dir>/<scope>/<name>/<version>.
+# `--search-path` must point at that versioned pack root, NOT the cache dir.
+ENV CODEQL_PACK_ROOT=${CODEQL_DOWNLOAD_DIR}/${CODEQL_PACK}/${CODEQL_PACK_VERSION}
 
 RUN curl -sSL "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip" -o /tmp/codeql.zip \
     && unzip -q /tmp/codeql.zip -d /opt \
     && mv /opt/codeql /opt/codeql-cli \
     && rm /tmp/codeql.zip \
-    && mkdir -p "${CODEQL_SEARCH_PATH}" \
-    && /opt/codeql-cli/codeql pack download --dir="${CODEQL_SEARCH_PATH}" "${CODEQL_PYTHON_PACK}"
+    && mkdir -p "${CODEQL_DOWNLOAD_DIR}" \
+    && /opt/codeql-cli/codeql pack download --dir="${CODEQL_DOWNLOAD_DIR}" "${CODEQL_PACK}@${CODEQL_PACK_VERSION}"
 
 ENV PATH="/opt/codeql-cli:${PATH}"
 
@@ -49,8 +53,8 @@ RUN useradd -m -u 1000 evaluser \
 USER evaluser
 
 # Build-time proof that evaluser can locate and compile the pinned suite offline.
-RUN codeql resolve queries --search-path=/opt/codeql-packages \
-    codeql/python-queries:codeql-suites/python-security-extended.qls >/dev/null
+RUN codeql resolve queries --search-path="${CODEQL_PACK_ROOT}" \
+    "${CODEQL_PACK}:codeql-suites/python-security-extended.qls" >/dev/null
 
 # Validate every vendored rule file individually. Per-file validation avoids
 # duplicate-id clashes between registry packs while still failing the build on
