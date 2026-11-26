@@ -221,3 +221,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AI security benchmark
+.venv*/
+artifacts/*
+!artifacts/.gitkeep
+sandbox_template/sandbox.db
+sandbox_template/test_sandbox.db
+/tmp/
+

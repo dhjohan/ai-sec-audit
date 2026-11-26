@@ -1,0 +1,90 @@
+# Evaluation image: Python 3.12 + Semgrep OSS + CodeQL CLI/python-queries + pip-audit + pytest
+FROM python:3.12-slim AS base
+
+# unzip is required for the CodeQL bundle; build-essential for native wheels.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    unzip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin CodeQL CLI + matching python-queries pack. Fail loudly if either is wrong.
+ARG CODEQL_VERSION=2.27.6
+ARG CODEQL_PYTHON_PACK=codeql/python-queries@1.7.2
+
+RUN curl -sSL "https://github.com/github/codeql-cli-binaries/releases/download/v${CODEQL_VERSION}/codeql-linux64.zip" -o /tmp/codeql.zip \
+    && unzip -q /tmp/codeql.zip -d /opt \
+    && mv /opt/codeql /opt/codeql-cli \
+    && rm /tmp/codeql.zip
+
+ENV PATH="/opt/codeql-cli:${PATH}"
+
+# Isolate only the standalone CLI scanners so they cannot clash with app deps.
+RUN python -m venv /opt/tools-venv \
+    && /opt/tools-venv/bin/pip install --no-cache-dir \
+        semgrep==1.187.0 \
+        pip-audit==2.8.0 \
+    && ln -sf /opt/tools-venv/bin/semgrep /usr/local/bin/semgrep \
+    && ln -sf /opt/tools-venv/bin/pip-audit /usr/local/bin/pip-audit
+
+# App runtime + dev tooling (pytest, pytest-asyncio, pytest-cov, ruff, mypy)
+# share the system interpreter so pytest/mypy can import fastapi/sqlalchemy.
+COPY sandbox_template/requirements.lock /tmp/requirements.lock
+RUN pip install --no-cache-dir -r /tmp/requirements.lock \
+    && pip check
+
+# Vendored Semgrep rules so scans run with --network=none.
+COPY rules/semgrep /opt/semgrep-rules
+
+RUN useradd -m -u 1000 evaluser \
+    && chmod -R a+rX /opt/semgrep-rules /opt/tools-venv
+
+# CodeQL's common cache is $HOME/.codeql, so HOME must match the evaluser passwd entry.
+ENV HOME=/home/evaluser
+USER evaluser
+
+# Keep the build-time CodeQL probes out of the read-only-at-runtime /workspace.
+WORKDIR /tmp
+
+# No --dir: CodeQL installs the pinned pack and its bundled dependencies into
+# $HOME/.codeql/packages, keyed by version, and never contacts GHCR again when
+# the spec is pinned.
+RUN codeql pack download "${CODEQL_PYTHON_PACK}"
+
+# The default compilation cache is $HOME/.codeql/compile-cache. Point it at the
+# runtime tmpfs so `--read-only` scans can compile. Phase 3 must first run
+# `mkdir -p /tmp/codeql-cache` because --tmpfs /tmp starts empty.
+RUN mkdir -p /tmp/codeql-cache \
+    && ln -sfn /tmp/codeql-cache "${HOME}/.codeql/compile-cache"
+
+# Build-time proof that evaluser can resolve the pinned suite offline.
+RUN codeql resolve packs \
+    && codeql resolve queries "${CODEQL_PYTHON_PACK}:codeql-suites/python-security-extended.qls" >/dev/null
+
+# Prove the writable compilation cache works. Full-suite precompilation is
+# deferred to Phase 3: it is slow and /tmp is a fresh tmpfs at scan time.
+RUN codeql query compile --compilation-cache=/tmp/codeql-cache \
+        "${CODEQL_PYTHON_PACK}:Security/CWE-089/SqlInjection.ql" \
+    && test -n "$(ls -A /tmp/codeql-cache)" \
+    && rm -rf /tmp/codeql-cache/* \
+    && mkdir -p /tmp/codeql-cache
+
+# Validate every vendored rule file individually. Per-file validation avoids
+# duplicate-id clashes between registry packs while still failing the build on
+# any invalid YAML.
+RUN set -e; for f in /opt/semgrep-rules/*.yaml /opt/semgrep-rules/vendor/*.yaml; do \
+        if [ -e "$f" ]; then semgrep --validate --config "$f"; fi; \
+    done
+
+RUN semgrep --version \
+    && codeql version --format=terse \
+    && pip-audit --version \
+    && ruff --version \
+    && mypy --version \
+    && pytest --version
+
+WORKDIR /workspace
+
+CMD ["pytest", "-v"]

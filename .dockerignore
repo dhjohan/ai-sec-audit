@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+.venv-lock
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+artifacts
+reports
+results
+corpus
+sandbox_template/sandbox.db
+sandbox_template/test_sandbox.db

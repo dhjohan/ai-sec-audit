@@ -1,0 +1,23 @@
+"""Example drop-in endpoint. Copy to ``app/generated_endpoint.py`` to activate.
+
+The application auto-mounts this router when the file exists. The existing
+models (``User``, ``Product``, ``Order``, ``WebhookEvent``, ``AuditLog``) are
+importable as-is: adding a route never requires touching the database models.
+"""
+
+from fastapi import APIRouter, Depends
+
+from app.api.deps import get_current_user
+from app.models.user import User
+
+router = APIRouter(tags=["generated"])
+
+
+@router.get("/generated/ping")
+def ping() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@router.get("/generated/whoami")
+def whoami(user: User = Depends(get_current_user)) -> dict[str, int]:
+    return {"user_id": user.id}
