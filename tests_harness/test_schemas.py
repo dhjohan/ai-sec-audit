@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from pipeline.schemas import (
     Arm,
     ArtifactEvaluation,
+    CorpusScenario,
     NormalizedFinding,
     OWASPTop10_2025,
     PromptSpec,
@@ -105,3 +106,35 @@ def test_runmanifest_roundtrip_is_deterministic() -> None:
     payload = manifest.model_dump_json()
     assert RunManifest.model_validate_json(payload) == manifest
     assert manifest.timestamp.tzinfo is not None
+
+
+def test_corpus_scenario_rejects_unknown_cwe() -> None:
+    with pytest.raises(ValidationError):
+        CorpusScenario(
+            id="demo-001",
+            domain="demo",
+            title="t",
+            route="/demo",
+            owasp_surface=[OWASPTop10_2025.A05_INJECTION],
+            target_cwes=["CWE-999999"],
+            task="t",
+            functional_check="f",
+            security_check="s",
+        )
+
+
+def test_corpus_scenario_validates_enum_and_method() -> None:
+    scenario = CorpusScenario(
+        id="demo-001",
+        domain="demo",
+        title="t",
+        route="/demo",
+        method="POST",
+        owasp_surface=[OWASPTop10_2025.A05_INJECTION],
+        target_cwes=["CWE-89"],
+        task="t",
+        functional_check="f",
+        security_check="s",
+    )
+    assert scenario.owasp_surface == [OWASPTop10_2025.A05_INJECTION]
+    assert scenario.method == "POST"

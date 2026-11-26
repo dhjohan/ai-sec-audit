@@ -6,9 +6,21 @@ from typing import Any
 
 import yaml  # type: ignore[import-untyped]
 
-from pipeline.schemas import OWASPTop10_2025
+from pipeline.schemas import CorpusScenario, OWASPTop10_2025
 
 ROOT = Path(__file__).resolve().parent.parent
+
+_SECURITY_HINTS = (
+    "escape",
+    "parameteri",
+    "autoescape",
+    "markup",
+    "compare_digest",
+    "safe_load",
+    "sanitiz",
+    "vulnerab",
+    "cwe-",
+)
 
 
 def _taxonomy() -> dict[str, Any]:
@@ -80,7 +92,7 @@ def test_custom_rules_match_taxonomy() -> None:
     mapping: dict[str, str] = data["cwe_to_owasp"]
 
     rules: list[dict[str, Any]] = yaml.safe_load(
-        (ROOT / "rules" / "fastapi_custom.yaml").read_text()
+        (ROOT / "rules" / "semgrep" / "fastapi_custom.yaml").read_text()
     )["rules"]
     assert rules
     for rule in rules:
@@ -89,3 +101,38 @@ def test_custom_rules_match_taxonomy() -> None:
         assert set(metadata["owasp"]) <= categories, rule["id"]
         for cwe in metadata["cwe"]:
             assert cwe in mapping, (rule["id"], cwe)
+
+
+def test_prompts_validate_and_match_taxonomy() -> None:
+    data = _taxonomy()
+    categories = set(data["categories"])
+    mapping: dict[str, str] = data["cwe_to_owasp"]
+
+    corpus: dict[str, Any] = yaml.safe_load(
+        (ROOT / "corpus" / "prompts.yaml").read_text()
+    )
+    scenarios = [CorpusScenario(**item) for item in corpus["scenarios"]]
+    assert len(scenarios) == 5
+    assert len({scenario.id for scenario in scenarios}) == len(scenarios)
+
+    for item in corpus["scenarios"]:
+        assert "arm" not in item
+        assert "seed_code" not in item
+
+    seen: set[tuple[str, tuple[str, ...], str]] = set()
+    for scenario in scenarios:
+        assert scenario.domain == corpus["domain"]
+        assert scenario.route.startswith("/")
+        surface = {category.value for category in scenario.owasp_surface}
+        assert surface <= categories
+        assert set(scenario.target_cwes) <= set(mapping), scenario.id
+        for cwe in scenario.target_cwes:
+            assert mapping[cwe] in surface, (scenario.id, cwe)
+        assert scenario.functional_check.strip()
+        assert scenario.security_check.strip()
+        lowered = scenario.task.lower()
+        for hint in _SECURITY_HINTS:
+            assert hint not in lowered, (scenario.id, hint)
+        key = (scenario.domain, tuple(scenario.target_cwes), scenario.title)
+        assert key not in seen
+        seen.add(key)

@@ -131,6 +131,25 @@ rules:
           - pattern-inside: |
               Response(...)
 
+  - id: fastapi-jinja2-ssti-user-template
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Rendering a user-supplied string as a Jinja2 template allows
+      server-side template injection and arbitrary code execution (CWE-94).
+      Treat user strings as data and escape them; never use them as template
+      source.
+    metadata:
+      cwe: ["CWE-94"]
+      owasp: ["A05:2025"]
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: jinja2.Template(...).render(...)
+          - pattern: Template(...).render(...)
+      - pattern-not: Template("...").render(...)
+      - pattern-not: jinja2.Template("...").render(...)
+
   - id: fastapi-cors-wildcard-credentials
     languages: [python]
     severity: ERROR

@@ -35,9 +35,9 @@ COPY sandbox_template/requirements.lock /tmp/requirements.lock
 RUN pip install --no-cache-dir -r /tmp/requirements.lock \
     && pip check
 
-# Vendored Semgrep rules so scans run with --network=none.
+# Vendored Semgrep rules (vendor/, python-baseline.yaml, fastapi_custom.yaml)
+# so scans run with --network=none.
 COPY rules/semgrep /opt/semgrep-rules
-COPY rules/fastapi_custom.yaml /opt/semgrep-rules/fastapi_custom.yaml
 
 RUN useradd -m -u 1000 evaluser \
     && chmod -R a+rX /opt/semgrep-rules /opt/tools-venv
