@@ -28,7 +28,9 @@ async def test_zip_slip_entry_stays_inside(staging_dir, async_client):
 
 @pytest.mark.asyncio
 async def test_compression_bomb_rejected(staging_dir, async_client):
-    payload = _zip({"big.bin": b"\0" * (64 * 1024 + 1)})
+    # High-ratio bomb: ~12 KiB on the wire, 12 MiB uncompressed.
+    payload = _zip({"big.bin": b"\0" * (12 * 1024 * 1024)})
+    assert len(payload) < 1024 * 1024
     response = await async_client.post(
         "/files/archive-extract",
         files={"file": ("bundle.zip", payload, "application/zip")},

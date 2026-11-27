@@ -328,8 +328,8 @@ scenarios:
     security_check: |
       A ZIP entry named "../escaped.txt" must not create a file outside the
       staging directory; the response is 200 with that entry skipped or
-      rewritten, or 400. A ZIP whose declared uncompressed size exceeds
-      64 KiB must be rejected with a 4xx status and must not be written to
+      rewritten, or 400. A tiny ZIP whose entries decompress to more than
+      10 MiB must be rejected with a 4xx status and must not be written to
       disk.
 
   - id: "file_upload-004"
@@ -372,7 +372,8 @@ scenarios:
       "price_cents": int}, ...]}`. A missing or different header, or a
       non-integer price_cents, returns 400 with
       `{"detail": "invalid csv"}`. A file with no data rows returns 200 with
-      imported 0.
+      imported 0. An uploaded file larger than 65536 bytes returns 413 with
+      `{"detail": "file too large"}`.
 
       Also add GET /files/csv-export that returns 200, `Content-Type:
       text/csv`, with a `name,sku,price_cents` header followed by one line per

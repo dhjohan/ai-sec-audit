@@ -121,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Only calibrate scenarios whose id starts with '<domain>-'",
     )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Also write the JSON report to this path",
+    )
     args = parser.parse_args(argv)
     scenarios = sorted(p.name for p in CALIBRATION.iterdir() if p.is_dir())
     if args.domain:
@@ -146,7 +151,10 @@ def main(argv: list[str] | None = None) -> int:
             {"scenario": scenario, "secure": secure, "vuln": vuln,
              "secure_ok": secure_ok, "vuln_ok": vuln_ok}
         )
-    print(json.dumps({"ok": ok, "scenarios": report}, indent=2))
+    payload = json.dumps({"ok": ok, "scenarios": report}, indent=2)
+    print(payload)
+    if args.output:
+        Path(args.output).write_text(payload + "\n")
     return 0 if ok else 1
 
 
