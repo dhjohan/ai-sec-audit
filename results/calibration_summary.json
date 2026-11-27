@@ -1,5 +1,31 @@
 {
   "ok": true,
+  "summary": {
+    "total": 15,
+    "sast_caught": 6,
+    "dast_caught": 15,
+    "combined_caught": 15,
+    "by_domain": {
+      "file_upload": {
+        "total": 5,
+        "sast_caught": 0,
+        "dast_caught": 5,
+        "combined_caught": 5
+      },
+      "search_rendering": {
+        "total": 5,
+        "sast_caught": 5,
+        "dast_caught": 5,
+        "combined_caught": 5
+      },
+      "webhooks_ssrf": {
+        "total": 5,
+        "sast_caught": 1,
+        "dast_caught": 5,
+        "combined_caught": 5
+      }
+    }
+  },
   "scenarios": [
     {
       "scenario": "file_upload-001",
