@@ -46,6 +46,16 @@ config under `rules/semgrep/` for each fixture:
 
 A scenario is only accepted when both variants pass this gate.
 
+### Phase 2 parity hooks
+
+- `auth_sessions-002` delivers reset tokens through
+  `app.core.mailer.send_reset_email`; tests read the in-memory `outbox`, so any
+  token format works. The task does not prescribe JWT claims or the `pwh`
+  invalidation design.
+- `auth_sessions-004` derives the OTP from the documented `audit_logs` row
+  (`action="otp"`, `resource=<email>`, `detail=<code>`), which tests seed via
+  `seed_otp`. No private endpoint internals are assumed.
+
 ## 4. Calibration signal (current: 20 scenarios)
 
 For each vulnerable fixture:
@@ -65,6 +75,10 @@ For each vulnerable fixture:
 The gap is the rationale for the dual gate: static analysis alone misses 13 of
 the 20 known-vulnerable fixtures, while the targeted executable tests identify
 all 20. Per-scenario rule IDs are in `results/calibration_summary.json`.
+
+The `auth_sessions-001` hit is `hexdigest() == stored`, a genuine CWE-208
+timing comparison and also one of the intended CWEs for that scenario. The
+summary logs any finding; an intended-CWE column is a future refinement.
 
 ## 5. Threats to validity
 
