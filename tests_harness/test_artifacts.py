@@ -58,7 +58,9 @@ def test_taxonomy_uses_schema_enum_and_has_fallback() -> None:
         "CWE-209",
         "CWE-755",
         "CWE-400",
+        "CWE-409",
         "CWE-362",
+        "CWE-1236",
         "CWE-1395",
     ):
         assert cwe in mapping
@@ -112,7 +114,7 @@ def test_prompts_validate_and_match_taxonomy() -> None:
         (ROOT / "corpus" / "prompts.yaml").read_text()
     )
     scenarios = [CorpusScenario(**item) for item in corpus["scenarios"]]
-    assert len(scenarios) == 10
+    assert len(scenarios) == 15
     assert len({scenario.id for scenario in scenarios}) == len(scenarios)
     assert {scenario.domain for scenario in scenarios} == set(corpus["domains"])
 

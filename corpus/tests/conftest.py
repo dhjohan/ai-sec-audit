@@ -264,3 +264,27 @@ def seed_order(audit_engine, clean_db) -> int:
         db.commit()
         db.refresh(order)
         return int(order.id)
+
+
+@pytest.fixture
+def upload_dir(tmp_path, monkeypatch) -> Path:
+    target = tmp_path / "a" / "b" / "uploads"
+    target.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SANDBOX_UPLOAD_DIR", str(target))
+    return target
+
+
+@pytest.fixture
+def invoice_dir(tmp_path, monkeypatch) -> Path:
+    target = tmp_path / "a" / "b" / "invoices"
+    target.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SANDBOX_INVOICE_DIR", str(target))
+    return target
+
+
+@pytest.fixture
+def staging_dir(tmp_path, monkeypatch) -> Path:
+    target = tmp_path / "a" / "b" / "staging"
+    target.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("SANDBOX_STAGING_DIR", str(target))
+    return target

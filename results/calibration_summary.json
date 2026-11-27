@@ -1,0 +1,273 @@
+{
+  "ok": true,
+  "scenarios": [
+    {
+      "scenario": "file_upload-001",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "file_upload-002",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "file_upload-003",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "file_upload-004",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "file_upload-005",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "search_rendering-001",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-htmlresponse-fstring"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "search_rendering-002",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 2,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-jinja2-autoescape-disabled",
+          "rules.semgrep.vendor.python.jinja2.security.audit.autoescape-disabled-false.incorrect-autoescape-disabled"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "search_rendering-003",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-markup-untrusted"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "search_rendering-004",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.vendor.python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "search_rendering-005",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-jinja2-ssti-user-template"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "webhooks_ssrf-001",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-hmac-compare-inequality"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "webhooks_ssrf-002",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "webhooks_ssrf-003",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "webhooks_ssrf-004",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "webhooks_ssrf-005",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    }
+  ]
+}
