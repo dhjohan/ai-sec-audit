@@ -64,3 +64,39 @@
   is the only supported resolution path.
 - `make codeql-offline` proves the pinned spec resolves as `evaluser` with no network
   and a read-only root.
+
+## Git Workflow & Hygiene
+
+### Workspace Safety & Boundaries
+
+- **Inspect first:** Always start with `git status --short` before making edits or running git commands.
+- **Preserve existing work:** Never discard, overwrite, reformat, or stage uncommitted changes you did not make. If unexpected dirty files conflict with your task, stop and ask.
+- **Ask before destructive operations:** Never run `git reset --hard`, `git clean -fd`, `git checkout -- .`, `git restore .`, `git push --force` (or `--force-with-lease`), or `git branch -D` without explicit user approval.
+- **Never alter git config or shared history:** Do not modify `git config` (`user.name`, `user.email`, `core.hooksPath`) and never amend, rebase, or squash commits already pushed to a shared branch.
+- **Avoid interactive hangs & temp clutter:** Always pass `git --no-pager` on read commands (`log`, `diff`, `show`), and supply commit messages via repeated `-m` flags (`git commit -m "<subject>" -m "<body>"`) or stdin (`git commit -F -`). Never run `git rebase -i` or `git add -p`, and never leave temporary message or patch files in the working tree.
+
+### Branching & Isolation
+
+- **Never commit directly to protected branches** (`main`, `master`, `develop`, or `release/*`). Create a task branch from the up-to-date default branch (`origin/HEAD`, typically `main`) before making commits.
+- **Branch naming:** Use `<type>/<kebab-case-slug>` where `<type>` is one of `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, or `ci` (e.g., `feat/rate-limiter`, `fix/null-webhook`).
+- **Stay isolated:** Work strictly inside your assigned branch or git worktree. Do not switch branches in a shared working directory or modify/remove another worktree.
+
+### Staging & Diff Hygiene
+
+- **Stage by explicit path:** Use `git add <path/to/file>`. Never use `git add -A`, `git add .`, or `git add --all`.
+- **Pre-commit inspection:** Before every commit, run:
+  - `git diff --check` (catches trailing whitespace and leftover conflict markers)
+  - `git --no-pager diff --cached --stat` and `git --no-pager diff --cached`
+- Confirm the staged diff contains no secrets (`.env`, API keys, tokens, private keys), debug artifacts (`console.log`, `debugger`, `breakpoint()`, `pdb`, `dbg!`, scratch files), build outputs, or unintended lockfile/submodule pointer changes.
+
+### Commits & Hook Integrity
+
+- **Never bypass hooks:** Never pass `--no-verify` or `-n` to `git commit` or `git push`, and never set `SKIP`, `HUSKY=0`, or `LEFTHOOK=0`. If a pre-commit hook or check fails, fix the root cause and re-run.
+- **Verify before committing:** Run the repository's configured lint, typecheck, and relevant tests before every commit (checking this file, CI workflows, or project manifests like `package.json`, `Makefile`, `pyproject.toml`, `Cargo.toml`, or `go.mod`). Explicitly report any check that could not be run and why.
+- **Atomic Conventional Commits:** Make one logical change per commit using `<type>(<optional-scope>): <imperative summary>` with `<type>` in `{feat, fix, refactor, docs, test, chore, perf, ci, build, revert}`. Keep the subject <= 72 characters, lowercase imperative mood, and no trailing period (e.g., `fix(auth): handle expired refresh tokens`). Use `!` or a `BREAKING CHANGE:` footer for breaking changes, explain _why_ in the body when non-obvious, and omit tool boilerplate.
+
+### Syncing, Conflicts & Pull Requests
+
+- **Sync safely:** Run `git fetch origin` before branching or updating, and prefer `git pull --ff-only` when pulling upstream changes. Only push to remote when requested or when completing a PR workflow.
+- **Conflict resolution:** Never blindly resolve merge or rebase conflicts with blanket `--ours` or `--theirs`; if resolution touches logic outside your scope or another author's intent, stop and ask.
+- **Pull request discipline:** Keep PRs strictly scoped to the task. Summarize _what_ changed, _why_, any breaking changes or follow-ups, and the exact verification commands run with their observed outcomes.
