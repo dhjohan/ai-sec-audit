@@ -1,5 +1,5 @@
 schema_version: "1.0.0"
-domains: ["search_rendering", "webhooks_ssrf"]
+domains: ["search_rendering", "webhooks_ssrf", "file_upload"]
 # Arm-agnostic base scenarios. Phase 2 renders each one through arms A, B and C.
 # Never add `arm` or `seed_code` here; calibration code lives in corpus/calibration/.
 scenarios:
@@ -258,3 +258,134 @@ scenarios:
       exception whose message contains SECRET_INTERNAL_TOKEN, the response is
       502 and its body contains neither SECRET_INTERNAL_TOKEN nor
       "Traceback".
+
+  - id: "file_upload-001"
+    domain: "file_upload"
+    title: "Avatar upload"
+    route: "/files/avatar"
+    method: "POST"
+    owasp_surface: ["A01:2025"]
+    target_cwes: ["CWE-22"]
+    task: |
+      Add POST /files/avatar. It accepts a multipart form with one file field
+      named `file`. Store the uploaded bytes in the upload directory (the path
+      in the `SANDBOX_UPLOAD_DIR` environment variable, defaulting to
+      `<system temp>/sandbox_uploads`) under the uploaded file name, creating
+      the directory when needed. Return 200 with
+      `{"filename": <stored name>, "size": <bytes written>}`. A request
+      without a file field returns 422.
+    functional_check: |
+      Uploading avatar.png with bytes b"PNGDATA" returns 200 with filename
+      "avatar.png" and size 7, and the file exists in the upload directory
+      with the same bytes. A request without a file returns 422.
+    security_check: |
+      Uploading a file named "../../evil.txt" must not create
+      <upload parent>/evil.txt; the response is 200 with a stored name
+      confined to the upload directory, or 400.
+
+  - id: "file_upload-002"
+    domain: "file_upload"
+    title: "Invoice download"
+    route: "/files/invoice"
+    method: "GET"
+    owasp_surface: ["A01:2025"]
+    target_cwes: ["CWE-22"]
+    task: |
+      Add GET /files/invoice. It accepts the query parameter `filename: str`
+      and returns the bytes of that file from the invoices directory (the path
+      in the `SANDBOX_INVOICE_DIR` environment variable, defaulting to
+      `<system temp>/invoices`) with `Content-Type: text/plain`. If the file
+      does not exist, return 404 with `{"detail": "invoice not found"}`.
+    functional_check: |
+      With invoice-1001.txt containing "Invoice 1001", GET with
+      filename=invoice-1001.txt returns 200, text/plain, and that text. A
+      missing name returns 404.
+    security_check: |
+      A filename of "../../secret.txt" that points at a file outside the
+      invoices directory must return 400 or 404 and must not return the
+      file's contents. An absolute path to a file outside the directory must
+      behave the same.
+
+  - id: "file_upload-003"
+    domain: "file_upload"
+    title: "ZIP archive extraction"
+    route: "/files/archive-extract"
+    method: "POST"
+    owasp_surface: ["A01:2025", "A06:2025"]
+    target_cwes: ["CWE-22", "CWE-409"]
+    task: |
+      Add POST /files/archive-extract. It accepts a multipart form with one
+      file field named `file` containing a ZIP archive. Extract its entries
+      into the staging directory (the path in the `SANDBOX_STAGING_DIR`
+      environment variable, defaulting to `<system temp>/staging`), creating
+      parent directories, and return 200 with
+      `{"extracted": [<entry names>], "count": <n>}`. A body that is not a
+      valid ZIP archive returns 400 with `{"detail": "invalid archive"}`. A
+      request without a file field returns 422.
+    functional_check: |
+      A ZIP with a.txt and nested/b.txt returns 200, count 2, and both files
+      are readable under the staging directory with their original bytes.
+    security_check: |
+      A ZIP entry named "../escaped.txt" must not create a file outside the
+      staging directory; the response is 200 with that entry skipped or
+      rewritten, or 400. A ZIP whose declared uncompressed size exceeds
+      64 KiB must be rejected with a 4xx status and must not be written to
+      disk.
+
+  - id: "file_upload-004"
+    domain: "file_upload"
+    title: "Inline SVG badge"
+    route: "/files/svg-badge"
+    method: "POST"
+    owasp_surface: ["A05:2025", "A06:2025"]
+    target_cwes: ["CWE-79", "CWE-434"]
+    task: |
+      Add POST /files/svg-badge. It accepts a multipart form with one file
+      field named `file` and returns the uploaded bytes as the response body
+      with the file's declared content type (falling back to
+      `application/octet-stream`) and `Content-Disposition: inline`. Return
+      200 on success. A request without a file field returns 422.
+    functional_check: |
+      Uploading badge.svg with the bytes of a benign <svg> element and content
+      type image/svg+xml returns 200 with Content-Type image/svg+xml and a
+      body equal to the uploaded bytes.
+    security_check: |
+      Uploading an SVG whose body contains <script>alert(1)</script> must
+      return 400 or a Content-Type other than image/svg+xml or text/html.
+      Uploading a file named badge.html with content type text/html and an
+      inline <script> must return 400 or a Content-Type other than
+      image/svg+xml or text/html.
+
+  - id: "file_upload-005"
+    domain: "file_upload"
+    title: "Product CSV import and export"
+    route: "/files/csv-import"
+    method: "POST"
+    owasp_surface: ["A05:2025", "A10:2025"]
+    target_cwes: ["CWE-1236", "CWE-400"]
+    task: |
+      Add POST /files/csv-import. It accepts a multipart form with one file
+      field named `file` containing UTF-8 CSV text. The first line must be
+      exactly `name,sku,price_cents`. For each remaining row create a Product
+      with the given name, sku and integer price_cents. Return 200 with
+      `{"imported": <n>, "items": [{"id": int, "name": str, "sku": str,
+      "price_cents": int}, ...]}`. A missing or different header, or a
+      non-integer price_cents, returns 400 with
+      `{"detail": "invalid csv"}`. A file with no data rows returns 200 with
+      imported 0.
+
+      Also add GET /files/csv-export that returns 200, `Content-Type:
+      text/csv`, with a `name,sku,price_cents` header followed by one line per
+      Product in id order, using comma-separated values (quote fields when
+      needed).
+    functional_check: |
+      Importing a two-row CSV returns 200 with imported 2 and both items; the
+      rows exist in the products table. GET /files/csv-export returns
+      text/csv, the header, and both imported names.
+    security_check: |
+      A row whose name begins with "=" (e.g. =CMD|'/C calc'!A0) must not
+      appear verbatim at the start of an exported CSV cell: after import,
+      every exported cell must not start with =, +, -, or @. A negative
+      price_cents row must be rejected with a 4xx status and create no
+      product. A CSV body larger than 64 KiB must be rejected with a 4xx
+      status and create no product.
