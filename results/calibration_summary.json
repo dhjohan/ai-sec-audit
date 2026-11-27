@@ -1,11 +1,17 @@
 {
   "ok": true,
   "summary": {
-    "total": 15,
-    "sast_caught": 6,
-    "dast_caught": 15,
-    "combined_caught": 15,
+    "total": 20,
+    "sast_caught": 7,
+    "dast_caught": 20,
+    "combined_caught": 20,
     "by_domain": {
+      "auth_sessions": {
+        "total": 5,
+        "sast_caught": 1,
+        "dast_caught": 5,
+        "combined_caught": 5
+      },
       "file_upload": {
         "total": 5,
         "sast_caught": 0,
@@ -27,6 +33,93 @@
     }
   },
   "scenarios": [
+    {
+      "scenario": "auth_sessions-001",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 1,
+        "semgrep_rules": [
+          "rules.semgrep.fastapi-hmac-compare-inequality"
+        ]
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "auth_sessions-002",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "auth_sessions-003",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "auth_sessions-004",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
+    {
+      "scenario": "auth_sessions-005",
+      "secure": {
+        "functional_pass": true,
+        "security_pass": true,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "vuln": {
+        "functional_pass": true,
+        "security_pass": false,
+        "semgrep_findings": 0,
+        "semgrep_rules": []
+      },
+      "secure_ok": true,
+      "vuln_ok": true
+    },
     {
       "scenario": "file_upload-001",
       "secure": {
