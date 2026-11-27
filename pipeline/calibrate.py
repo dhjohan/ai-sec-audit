@@ -36,6 +36,21 @@ class VariantResult(TypedDict):
     semgrep_rules: list[str]
 
 
+class DomainSummary(TypedDict):
+    total: int
+    sast_caught: int
+    dast_caught: int
+    combined_caught: int
+
+
+class CalibrationSummary(TypedDict):
+    total: int
+    sast_caught: int
+    dast_caught: int
+    combined_caught: int
+    by_domain: dict[str, DomainSummary]
+
+
 def _semgrep_bin() -> str:
     found = shutil.which("semgrep")
     if found:
@@ -114,6 +129,13 @@ def _variant(scenario: str, variant: str) -> VariantResult:
     }
 
 
+def _append_history(path: Path, line: str) -> None:
+    previous = path.read_text().splitlines() if path.exists() else []
+    if not previous or previous[-1] != line:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Calibrate corpus fixtures")
     parser.add_argument(
@@ -126,6 +148,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Also write the JSON report to this path",
     )
+    parser.add_argument(
+        "--history",
+        default=None,
+        help="Append a one-line coverage summary to this JSONL file",
+    )
     args = parser.parse_args(argv)
     scenarios = sorted(p.name for p in CALIBRATION.iterdir() if p.is_dir())
     if args.domain:
@@ -134,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     if not scenarios:
         raise SystemExit("no calibration scenarios found")
     report: list[dict[str, object]] = []
+    by_domain: dict[str, DomainSummary] = {}
     ok = True
     for scenario in scenarios:
         secure = _variant(scenario, "secure")
@@ -147,14 +175,43 @@ def main(argv: list[str] | None = None) -> int:
             not vuln["security_pass"] or vuln["semgrep_findings"] >= 1
         )
         ok = ok and secure_ok and vuln_ok
+        domain = scenario.rsplit("-", 1)[0]
+        stats = by_domain.setdefault(
+            domain,
+            DomainSummary(
+                total=0, sast_caught=0, dast_caught=0, combined_caught=0
+            ),
+        )
+        sast_caught = vuln["semgrep_findings"] >= 1
+        dast_caught = not vuln["security_pass"]
+        stats["total"] += 1
+        stats["sast_caught"] += int(sast_caught)
+        stats["dast_caught"] += int(dast_caught)
+        stats["combined_caught"] += int(sast_caught or dast_caught)
         report.append(
             {"scenario": scenario, "secure": secure, "vuln": vuln,
              "secure_ok": secure_ok, "vuln_ok": vuln_ok}
         )
-    payload = json.dumps({"ok": ok, "scenarios": report}, indent=2)
+    summary = CalibrationSummary(
+        total=sum(item["total"] for item in by_domain.values()),
+        sast_caught=sum(item["sast_caught"] for item in by_domain.values()),
+        dast_caught=sum(item["dast_caught"] for item in by_domain.values()),
+        combined_caught=sum(
+            item["combined_caught"] for item in by_domain.values()
+        ),
+        by_domain=dict(sorted(by_domain.items())),
+    )
+    payload = json.dumps(
+        {"ok": ok, "summary": summary, "scenarios": report}, indent=2
+    )
     print(payload)
     if args.output:
         Path(args.output).write_text(payload + "\n")
+    if args.history:
+        line = json.dumps(
+            {"scope": args.domain or "all", "summary": summary}, sort_keys=True
+        )
+        _append_history(Path(args.history), line)
     return 0 if ok else 1
 
 
