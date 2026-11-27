@@ -112,8 +112,9 @@ def test_prompts_validate_and_match_taxonomy() -> None:
         (ROOT / "corpus" / "prompts.yaml").read_text()
     )
     scenarios = [CorpusScenario(**item) for item in corpus["scenarios"]]
-    assert len(scenarios) == 5
+    assert len(scenarios) == 10
     assert len({scenario.id for scenario in scenarios}) == len(scenarios)
+    assert {scenario.domain for scenario in scenarios} == set(corpus["domains"])
 
     for item in corpus["scenarios"]:
         assert "arm" not in item
@@ -121,7 +122,7 @@ def test_prompts_validate_and_match_taxonomy() -> None:
 
     seen: set[tuple[str, tuple[str, ...], str]] = set()
     for scenario in scenarios:
-        assert scenario.domain == corpus["domain"]
+        assert scenario.domain in corpus["domains"]
         assert scenario.route.startswith("/")
         surface = {category.value for category in scenario.owasp_surface}
         assert surface <= categories
