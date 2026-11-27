@@ -7,12 +7,15 @@ version-stamped and compared across experiments.
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class OWASPTop10_2025(str, Enum):
@@ -75,6 +78,47 @@ class PromptSpec(BaseModel):
     max_tokens: int
     system_prompt_sha256: str | None = None
     user_prompt_sha256: str
+
+
+_TAXONOMY_PATH = (
+    Path(__file__).resolve().parent.parent / "taxonomies" / "cwe_owasp_2025.json"
+)
+
+
+@lru_cache(maxsize=1)
+def _known_cwes() -> frozenset[str]:
+    data = json.loads(_TAXONOMY_PATH.read_text())
+    return frozenset(data["cwe_to_owasp"])
+
+
+class CorpusScenario(BaseModel):
+    """Arm-agnostic base scenario for ``corpus/prompts.yaml``.
+
+    Deliberately has no ``arm`` or ``seed_code``: Phase 2 renders one scenario
+    through all three arms. Vulnerable/secure code lives in calibration only.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    domain: str
+    title: str
+    route: str
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"] = "GET"
+    owasp_surface: list[OWASPTop10_2025]
+    target_cwes: list[str]
+    task: str
+    functional_check: str
+    security_check: str
+
+    @field_validator("target_cwes")
+    @classmethod
+    def _validate_cwes(cls, value: list[str]) -> list[str]:
+        known = _known_cwes()
+        unknown = [cwe for cwe in value if cwe not in known]
+        if unknown:
+            raise ValueError(f"CWEs missing from taxonomy: {unknown}")
+        return value
 
 
 class ArtifactEvaluation(BaseModel):
