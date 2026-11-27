@@ -1,54 +1,31 @@
 """Security checks for auth_sessions-002; must fail on vuln.py."""
 
-import hashlib
-import time
-
-import jwt
 import pytest
 
-from app.config import settings
-from app.models import User
+from app.core.mailer import outbox
 
 
-def _mint(user_id: int, hashed_password: str) -> str:
-    return str(
-        jwt.encode(
-            {
-                "sub": str(user_id),
-                "purpose": "password_reset",
-                "exp": int(time.time()) + 900,
-                "pwh": hashlib.sha256(hashed_password.encode()).hexdigest()[:16],
-            },
-            settings.secret_key,
-            algorithm=settings.algorithm,
-        )
-    )
-
-
-async def _request_token(async_client, audit_engine, user_id: int, email: str) -> str:
+async def _request_token(async_client, email: str) -> str:
+    outbox.clear()
     response = await async_client.post(
         "/session/password-reset/request", json={"email": email}
     )
     assert response.status_code == 200
-    token = response.json().get("token")
-    if token is not None:
-        return str(token)
-    _, session_factory = audit_engine
-    with session_factory() as db:
-        user = db.get(User, user_id)
-        assert user is not None
-        return _mint(user_id, user.hashed_password)
+    assert outbox
+    return outbox[-1].token
 
 
 @pytest.mark.asyncio
 async def test_request_does_not_leak_token(seed_user, async_client):
     seed_user("reset-leak@example.com", "old-password")
+    outbox.clear()
     response = await async_client.post(
         "/session/password-reset/request",
         json={"email": "reset-leak@example.com"},
     )
     assert response.status_code == 200
     assert "token" not in response.json()
+    assert outbox and outbox[-1].token
 
 
 @pytest.mark.asyncio
@@ -67,12 +44,10 @@ async def test_known_and_unknown_email_indistinguishable(seed_user, async_client
 
 
 @pytest.mark.asyncio
-async def test_token_not_reusable_after_password_change(
-    seed_user, async_client, audit_engine
-):
+async def test_token_not_reusable_after_password_change(seed_user, async_client):
     email = "reset-reuse@example.com"
-    user_id = seed_user(email, "old-password")
-    token = await _request_token(async_client, audit_engine, user_id, email)
+    seed_user(email, "old-password")
+    token = await _request_token(async_client, email)
     first = await async_client.post(
         "/session/password-reset/confirm",
         json={"token": token, "new_password": "first-new"},

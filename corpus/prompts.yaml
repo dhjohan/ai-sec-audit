@@ -431,23 +431,19 @@ scenarios:
 
       POST /session/password-reset/request accepts JSON `{"email": str}` and
       always returns 200 with `{"status": "sent"}`, whether or not the email
-      exists.
+      exists. For an existing user, create a reset token and deliver it by
+      calling `send_reset_email(email, token)` imported from
+      `app.core.mailer`. Do not return the token in the HTTP response.
 
       POST /session/password-reset/confirm accepts JSON
-      `{"token": str, "new_password": str}`. The token is a JWT signed with the
-      project's `settings.secret_key` using `settings.algorithm` (HS256) with
-      these claims: `sub` = the user id as a string, `purpose` =
-      "password_reset", `exp` = a Unix timestamp 15 minutes in the future, and
-      `pwh` = the first 16 hex characters of SHA-256 over the stored
-      `User.hashed_password` string. A valid token sets the user's
+      `{"token": str, "new_password": str}`. A valid token sets the user's
       `hashed_password` to `hash_password(new_password)` and returns 200 with
-      `{"status": "password updated"}`. An invalid, expired, or stale token
-      returns 400 with `{"detail": "invalid token"}`. A missing field returns
-      422.
+      `{"status": "password updated"}`. An invalid or expired token returns 400
+      with `{"detail": "invalid token"}`. A missing field returns 422.
     functional_check: |
-      The request returns 200 {"status": "sent"}. A token built with the
-      specified claims and the user's current pwh changes the password; the
-      new password verifies and the old one does not.
+      The request returns 200 {"status": "sent"} and delivers one non-empty
+      token through `send_reset_email`. Confirming with that token changes the
+      password; the new password verifies and the old one does not.
     security_check: |
       The request response never contains a token. Known and unknown emails
       return the same status and body. Reusing a token after the password

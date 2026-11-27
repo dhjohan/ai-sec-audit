@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.mailer import send_reset_email
 from app.core.security import hash_password
 from app.models.user import User
 
@@ -38,7 +39,8 @@ def request_reset(
     _next_token += 1
     token = str(_next_token)
     _tokens[token] = int(user.id)
-    # Bug: the token is returned in the response instead of only being sent.
+    send_reset_email(user.email, token)
+    # Bug: the token is also returned in the response.
     return {"status": "sent", "token": token}
 
 
@@ -56,7 +58,7 @@ def confirm_reset(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="invalid token"
         )
-    # Bug: the token is never consumed, so it stays valid after the change.
+    # Bug: the token is never consumed.
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
     return {"status": "password updated"}
