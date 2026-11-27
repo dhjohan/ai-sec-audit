@@ -64,6 +64,29 @@ test: lock-env
 		&& rm -rf /tmp/sandbox_template \
 		&& cp -R /workspace/sandbox_template /tmp/sandbox_template \
 		&& PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/sandbox_template pytest -p no:cacheprovider /tmp/sandbox_template/tests -v --tb=short"
+	# Calibrate every corpus fixture (secure/vuln + the full Semgrep suite)
+	# offline. The source tree is read-only, so copy it into the /tmp tmpfs.
+	docker run --rm \
+		--network=none \
+		--read-only \
+		--tmpfs /tmp:rw,size=256m \
+		--cap-drop=ALL \
+		--memory=1g \
+		--cpus=1 \
+		-v $(CURDIR)/sandbox_template:/workspace/sandbox_template:ro \
+		-v $(CURDIR)/pipeline:/workspace/pipeline:ro \
+		-v $(CURDIR)/corpus:/workspace/corpus:ro \
+		-v $(CURDIR)/rules:/workspace/rules:ro \
+		-v $(CURDIR)/taxonomies:/workspace/taxonomies:ro \
+		ai-sec-eval:latest \
+		sh -c "mkdir -p /tmp/workspace /tmp/home \
+		&& cp -R /workspace/pipeline /tmp/workspace/pipeline \
+		&& cp -R /workspace/corpus /tmp/workspace/corpus \
+		&& cp -R /workspace/rules /tmp/workspace/rules \
+		&& cp -R /workspace/taxonomies /tmp/workspace/taxonomies \
+		&& cp -R /workspace/sandbox_template /tmp/workspace/sandbox_template \
+		&& cd /tmp/workspace \
+		&& HOME=/tmp/home PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/tmp/workspace/sandbox_template:/tmp/workspace python -m pipeline.calibrate"
 
 # Phase 3 readiness: the pinned pack must resolve as evaluser with no network and
 # a read-only root. Only the /tmp tmpfs is writable.
