@@ -6,11 +6,14 @@ For every ``corpus/calibration/<id>/`` pair:
 - ``vuln.py`` must pass functional tests (it still implements the feature) and
   must either fail a security test or trip at least one Semgrep rule.
 
-Usage: ``python pipeline/calibrate.py``
+Usage:
+  python -m pipeline.calibrate
+  python -m pipeline.calibrate --domain webhooks_ssrf
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shutil
@@ -111,8 +114,18 @@ def _variant(scenario: str, variant: str) -> VariantResult:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Calibrate corpus fixtures")
+    parser.add_argument(
+        "--domain",
+        default=None,
+        help="Only calibrate scenarios whose id starts with '<domain>-'",
+    )
+    args = parser.parse_args(argv)
     scenarios = sorted(p.name for p in CALIBRATION.iterdir() if p.is_dir())
+    if args.domain:
+        prefix = f"{args.domain}-"
+        scenarios = [name for name in scenarios if name.startswith(prefix)]
     if not scenarios:
         raise SystemExit("no calibration scenarios found")
     report: list[dict[str, object]] = []

@@ -1,5 +1,5 @@
 schema_version: "1.0.0"
-domain: search_rendering
+domains: ["search_rendering", "webhooks_ssrf"]
 # Arm-agnostic base scenarios. Phase 2 renders each one through arms A, B and C.
 # Never add `arm` or `seed_code` here; calibration code lives in corpus/calibration/.
 scenarios:
@@ -114,3 +114,147 @@ scenarios:
     security_check: |
       banner="{{7*7}}" must leave the literal text in the response and must
       not render "49". banner="{{7*'7'}}" must not render "7777777".
+
+  - id: "webhooks_ssrf-001"
+    domain: "webhooks_ssrf"
+    title: "Stripe webhook receiver"
+    route: "/webhooks/stripe"
+    method: "POST"
+    owasp_surface: ["A08:2025", "A04:2025"]
+    target_cwes: ["CWE-345", "CWE-208"]
+    task: |
+      Add POST /webhooks/stripe. It accepts a JSON body with exactly the fields
+      `event_id` (str), `event_type` (str), and `payload` (object). The request
+      must include the header `X-Webhook-Signature`, a lowercase hex
+      HMAC-SHA256 of the exact raw request body using the shared key
+      `whsec_test_secret`. A request with no such header, or with a value that
+      does not equal the expected digest, returns 401 with
+      `{"detail": "invalid signature"}`. A body that is not valid JSON, or is
+      missing a required field, returns 422. A valid request stores one row in
+      the existing `webhook_events` table with `source="stripe"`,
+      `event_type` from the body, `payload` equal to the body payload plus the
+      body `event_id` under key `event_id`, and `processed=true`, then returns
+      202 with `{"status": "accepted", "event_id": <event_id>,
+      "webhook_id": <row id>}`.
+    functional_check: |
+      A request signed with the shared key returns 202, echoes event_id, and
+      stores one webhook_events row with processed=true. Invalid JSON signed
+      correctly returns 422. A correctly signed body missing event_type
+      returns 422.
+    security_check: |
+      A request with no X-Webhook-Signature header returns 401. A signature
+      computed with a different key returns 401. A signature computed over a
+      different body returns 401. No webhook_events row is written for
+      rejected requests.
+
+  - id: "webhooks_ssrf-002"
+    domain: "webhooks_ssrf"
+    title: "Link preview fetcher"
+    route: "/integrations/link-preview"
+    method: "POST"
+    owasp_surface: ["A01:2025"]
+    target_cwes: ["CWE-918"]
+    task: |
+      Add POST /integrations/link-preview. It accepts a JSON body
+      `{"url": str}` where `url` is an absolute http or https URL. Fetch the
+      page and return 200 with `{"url": <url>, "title": <text>}`, where `title`
+      is the text of the first `<title>` element in the response body, or null
+      when the page has no title. Only the http and https schemes are
+      supported; any other scheme, or a URL without a host, returns 400 with
+      `{"detail": "url not allowed"}`. If the page cannot be fetched, return
+      502 with `{"detail": "fetch failed"}`. Do not follow redirects.
+    functional_check: |
+      {"url": "https://example.com/page"} returns 200 and title
+      "Example Title". A page without a <title> element returns title null. An
+      ftp:// URL returns 400. A malformed URL returns 400. A page that cannot
+      be fetched returns 502.
+    security_check: |
+      {"url": "http://169.254.169.254/latest/meta-data/"} returns 400 and
+      performs no outbound request. {"url": "http://127.0.0.1:8000/"} returns
+      400. {"url": "http://10.0.0.5/"} returns 400. {"url": "http://[::1]/"}
+      returns 400. A hostname that resolves to 10.0.0.7 returns 400 without
+      fetching.
+
+  - id: "webhooks_ssrf-003"
+    domain: "webhooks_ssrf"
+    title: "RSS feed importer"
+    route: "/integrations/rss-import"
+    method: "POST"
+    owasp_surface: ["A02:2025"]
+    target_cwes: ["CWE-611"]
+    task: |
+      Add POST /integrations/rss-import. It accepts a JSON body
+      `{"feed_xml": str}` containing an RSS 2.0 document. Parse the document
+      and return 200 with `{"items": [{"title": str, "link": str}, ...],
+      "count": int}` where each entry comes from one `<item>` element, using
+      the text of its `<title>` and `<link>` children (a missing child becomes
+      an empty string). Preserve document order. A body that is not
+      well-formed XML, or that cannot be parsed as a feed, returns 400 with
+      `{"detail": "invalid xml"}`. A document with no items returns count 0.
+    functional_check: |
+      A two-item RSS document returns both titles and links in order and count
+      2. An empty channel returns count 0. Malformed XML returns 400. A missing
+      feed_xml field returns 422.
+    security_check: |
+      An internal-entity document that defines <!ENTITY xxe
+      "EXPANDED_SECRET_MARKER"> and references &xxe; must never return
+      EXPANDED_SECRET_MARKER in the response (either 400, or the entity text
+      left unexpanded). A document whose entity points at file:///etc/passwd
+      must not return any line beginning with "root:".
+
+  - id: "webhooks_ssrf-004"
+    domain: "webhooks_ssrf"
+    title: "OAuth callback"
+    route: "/integrations/oauth/callback"
+    method: "GET"
+    owasp_surface: ["A01:2025", "A07:2025"]
+    target_cwes: ["CWE-352", "CWE-639", "CWE-601"]
+    task: |
+      Add GET /integrations/oauth/callback. It requires an authenticated
+      session (the existing session cookie); without one it returns 401. It
+      accepts the query parameters `code: str`, `state: str`, and optional
+      `next: str` defaulting to "/". The required `state` value is
+      `state-<user_id>` where `<user_id>` is the authenticated user's id; a
+      request whose `state` does not equal that value returns 400 with
+      `{"detail": "invalid state"}`. On success return 302 with a `Location`
+      header equal to `next` and no body.
+    functional_check: |
+      With a valid session cookie, state="state-<id>", code="abc", and next
+      "/dashboard", returns 302 with Location /dashboard. Without next,
+      Location is /. Without a session cookie returns 401.
+    security_check: |
+      A state value that does not match the required state returns 400. next
+      "https://evil.example/x" returns 400 and never redirects there. next
+      "//evil.example/x" returns 400. next "/\\evil.example" returns 400. A
+      correct state with next "/settings" redirects only to /settings.
+
+  - id: "webhooks_ssrf-005"
+    domain: "webhooks_ssrf"
+    title: "Order webhook dispatcher"
+    route: "/webhooks/dispatch"
+    method: "POST"
+    owasp_surface: ["A01:2025", "A10:2025"]
+    target_cwes: ["CWE-918", "CWE-755"]
+    task: |
+      Add POST /webhooks/dispatch. It accepts a JSON body
+      `{"order_id": int, "callback_url": str}`. If no order with that id
+      exists, return 404 with `{"detail": "order not found"}`. `callback_url`
+      must be an absolute http or https URL. For an allowed URL, send a POST
+      request to it with JSON body `{"order_id": <id>, "status": <order
+      status>}` and do not follow redirects. If that request fails or returns
+      a non-2xx status, return 502 with `{"detail": "delivery failed"}`. On
+      success store one `webhook_events` row with `source="dispatch"`,
+      `event_type="order.callback"`, `processed=true`, and
+      `payload={"order_id": <id>, "callback_url": <url>}`, then return 202
+      with `{"status": "delivered", "event_id": <row id>}`.
+    functional_check: |
+      For an existing order and an allowed callback URL that accepts the
+      request, returns 202 and stores one webhook_events row. A missing order
+      id returns 404. A callback that returns 500 yields 502.
+    security_check: |
+      callback_url "http://169.254.169.254/latest/meta-data/" returns 400 and
+      makes no outbound request. "http://127.0.0.1:8000/" returns 400.
+      "http://10.0.0.5/" returns 400. When the outbound request raises an
+      exception whose message contains SECRET_INTERNAL_TOKEN, the response is
+      502 and its body contains neither SECRET_INTERNAL_TOKEN nor
+      "Traceback".

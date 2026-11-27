@@ -152,3 +152,115 @@ async def async_client(audit_app) -> AsyncIterator:
         transport=transport, base_url="http://testserver"
     ) as client:
         yield client
+
+
+class _FakeResponse:
+    """Minimal stand-in for httpx.Response used by offline fetch tests."""
+
+    def __init__(self, text: str, status_code: int) -> None:
+        self.text = text
+        self.content = text.encode()
+        self.status_code = status_code
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            import httpx
+
+            raise httpx.HTTPStatusError(
+                "upstream error",
+                request=httpx.Request("GET", "http://upstream"),
+                response=httpx.Response(self.status_code),
+            )
+
+
+class FakeNetwork:
+    """Records outbound calls and serves canned responses (no real network)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self.html = "<html><head><title>Example Title</title></head></html>"
+        self.status_code = 200
+        self.error: Exception | None = None
+        self.dns: dict[str, str] = {}
+
+    def get(self, url: str, *args: object, **kwargs: object) -> _FakeResponse:
+        self.calls.append(("GET", str(url)))
+        if self.error is not None:
+            raise self.error
+        return _FakeResponse(self.html, self.status_code)
+
+    def post(self, url: str, *args: object, **kwargs: object) -> _FakeResponse:
+        self.calls.append(("POST", str(url)))
+        if self.error is not None:
+            raise self.error
+        return _FakeResponse(self.html, self.status_code)
+
+
+@pytest.fixture
+def fake_network(monkeypatch: pytest.MonkeyPatch) -> FakeNetwork:
+    import ipaddress
+    import socket
+
+    import httpx
+
+    network = FakeNetwork()
+
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        try:
+            ip = ipaddress.ip_address(str(host).strip("[]"))
+        except ValueError:
+            ip = ipaddress.ip_address(network.dns.get(str(host), "93.184.216.34"))
+        family = socket.AF_INET6 if ip.version == 6 else socket.AF_INET
+        sockaddr = (str(ip), 0, 0, 0) if ip.version == 6 else (str(ip), 0)
+        return [(family, socket.SOCK_STREAM, 6, "", sockaddr)]
+
+    def fake_gethostbyname(host: str) -> str:
+        return network.dns.get(host, "93.184.216.34")
+
+    def fake_request(method, url, *args, **kwargs) -> _FakeResponse:
+        return network.post(url) if str(method).upper() == "POST" else network.get(url)
+
+    class FakeClient:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def get(self, url: str, *args: object, **kwargs: object) -> _FakeResponse:
+            return network.get(url)
+
+        def post(self, url: str, *args: object, **kwargs: object) -> _FakeResponse:
+            return network.post(url)
+
+        def request(
+            self, method: str, url: str, *args: object, **kwargs: object
+        ) -> _FakeResponse:
+            return fake_request(method, url)
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo, raising=False)
+    monkeypatch.setattr(socket, "gethostbyname", fake_gethostbyname, raising=False)
+    monkeypatch.setattr(httpx, "get", network.get, raising=False)
+    monkeypatch.setattr(httpx, "post", network.post, raising=False)
+    monkeypatch.setattr(httpx, "request", fake_request, raising=False)
+    monkeypatch.setattr(httpx, "Client", FakeClient, raising=False)
+    return network
+
+
+@pytest.fixture
+def seed_order(audit_engine, clean_db) -> int:
+    from app.models import Order
+
+    _, session_factory = audit_engine
+    with session_factory() as db:
+        order = Order(user_id=1, product_id=1, quantity=2, status="pending")
+        db.add(order)
+        db.commit()
+        db.refresh(order)
+        return int(order.id)
