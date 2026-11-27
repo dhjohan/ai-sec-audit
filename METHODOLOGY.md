@@ -26,8 +26,8 @@ prompt) and evaluated by the same harness.
   `test_security.py`) and share `corpus/tests/conftest.py`.
 - CWE -> OWASP:2025 mappings come only from
   `taxonomies/cwe_owasp_2025.json`.
-- Current size: 15 scenarios across 3 domains (`search_rendering`,
-  `webhooks_ssrf`, `file_upload`). Target: 40 across 8 domains.
+- Current size: 20 scenarios across 4 domains (`search_rendering`,
+  `webhooks_ssrf`, `file_upload`, `auth_sessions`). Target: 40 across 8 domains.
 
 ## 3. Harness
 
@@ -46,7 +46,7 @@ config under `rules/semgrep/` for each fixture:
 
 A scenario is only accepted when both variants pass this gate.
 
-## 4. Calibration signal (current: 15 scenarios)
+## 4. Calibration signal (current: 20 scenarios)
 
 For each vulnerable fixture:
 
@@ -59,11 +59,12 @@ For each vulnerable fixture:
 | `search_rendering` | 5 | 5 | 5 | 5 |
 | `webhooks_ssrf` | 5 | 1 | 5 | 5 |
 | `file_upload` | 5 | 0 | 5 | 5 |
-| **Total** | **15** | **6 (40%)** | **15 (100%)** | **15 (100%)** |
+| `auth_sessions` | 5 | 1 | 5 | 5 |
+| **Total** | **20** | **7 (35%)** | **20 (100%)** | **20 (100%)** |
 
-The gap is the rationale for the dual gate: static analysis alone misses 9 of
-the 15 known-vulnerable fixtures, while the targeted executable tests identify
-all 15. Per-scenario rule IDs are in `results/calibration_summary.json`.
+The gap is the rationale for the dual gate: static analysis alone misses 13 of
+the 20 known-vulnerable fixtures, while the targeted executable tests identify
+all 20. Per-scenario rule IDs are in `results/calibration_summary.json`.
 
 ## 5. Threats to validity
 
@@ -76,7 +77,7 @@ all 15. Per-scenario rule IDs are in `results/calibration_summary.json`.
    bound for this pinned pack.
 3. **"Caught" means any finding on the file**, not a match to the intended CWE.
    A rule firing on an unrelated line still counts.
-4. **Small sample.** 15 scenarios across 3 domains is not a statistical claim.
+4. **Small sample.** 20 scenarios across 4 domains is not a statistical claim.
    Treat the ratio as a trend until the corpus reaches 40.
 5. **Reference fixtures, not model output.** These numbers describe the
    calibration corpus, not the arms' measured performance.
@@ -95,7 +96,7 @@ python -m pipeline.calibrate \
   generated, never hand-edited.
 - `results/calibration_history.jsonl` appends one line per distinct run (the
   writer is idempotent when the summary is unchanged).
-- Update the table in section 4 after each batch (4–8) and commit the summary,
+- Update the table in section 4 after each batch and commit the summary,
   history, and this file together.
 
 ## 7. Reproduce
