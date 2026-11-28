@@ -288,3 +288,45 @@ def staging_dir(tmp_path, monkeypatch) -> Path:
     target.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("SANDBOX_STAGING_DIR", str(target))
     return target
+
+
+@pytest.fixture
+def seed_user(audit_engine, clean_db):
+    from app.core.security import hash_password
+    from app.models import User
+
+    _, session_factory = audit_engine
+
+    def _seed(
+        email: str,
+        password: str | None = None,
+        hashed_password: str | None = None,
+        is_active: bool = True,
+    ) -> int:
+        stored = (
+            hashed_password
+            if hashed_password is not None
+            else hash_password(password or "")
+        )
+        with session_factory() as db:
+            user = User(email=email, hashed_password=stored, is_active=is_active)
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            return int(user.id)
+
+    return _seed
+
+
+@pytest.fixture
+def seed_otp(audit_engine, clean_db):
+    from app.models import AuditLog
+
+    _, session_factory = audit_engine
+
+    def _seed(email: str, code: str) -> None:
+        with session_factory() as db:
+            db.add(AuditLog(action="otp", resource=email, detail=code))
+            db.commit()
+
+    return _seed
